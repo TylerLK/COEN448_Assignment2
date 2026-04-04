@@ -169,7 +169,7 @@ def test_user_update(api_base_url, mongo_client):
 def load_csv_data():
     csv_file = os.path.join(os.path.dirname(__file__), "tc01.csv")
     datasets = []
-    with open(csv_file, mode='r', encoding='utf-8') as f:
+    with open(csv_file, mode='r', encoding='utf-8', newline='') as f:
         reader = csv.DictReader(f)
         for row in reader:
             datasets.append(row)
