@@ -210,7 +210,7 @@ def test_tc01_user_integration(api_base_url, mongo_client, user_data):
     users_db = mongo_client[os.getenv("DATABASE_NAME")]
     users_collection = users_db["users"]
     
-    # Wait a moment for async events if any, though here it's sync to DB
+    # Search for the user in the database through mongo client
     db_user = users_collection.find_one({"userId": user_id})
     assert db_user is not None, f"User with ID {user_id} not found in MongoDB after creation"
 
