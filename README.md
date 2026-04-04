@@ -1,4 +1,5 @@
-# Aware-Microservices 
+# Aware-Microservices
+
 ## Project Overview
 
 Aware-Microservices is a project designed to demonstrate the architecture and implementation of a microservices-based system. This project utilizes various technologies to build a robust and scalable system, including MongoDB for the database, Flask for the microservices, Kong for the API gateway, and RabbitMQ for the event-driven system.
@@ -20,13 +21,11 @@ The architecture of the Aware-Microservices project is composed of the following
 
 *Figure 2: Deployed architecture diagram of the Aware-Microservices project, showing the deployment setup and interaction between various components in a production environment.*
 
-
-
 ## Project Directory Structure
 
 The project directory structure is organized as follows:
 
-```
+```md
 .
 ├── .env.example
 ├── .gitignore
@@ -131,13 +130,23 @@ To run the Aware-Microservices project using Docker, follow these steps:
 
 1. Ensure you have Docker installed on your Linux system.
 2. Set the environment variables using the `.env.example` file as a template.
-3. Execute the following command to build and run the Docker containers:
+3. Open a Git Bash terminal in your IDE.
+4. Execute the following command to build and run the Docker containers:
 
     ```bash
     docker compose down -v && docker compose build && docker compose up --force-recreate
     ```
 
 This command will stop any running containers, build the images, and start the containers with the latest changes.
+
+## Installing all Required Modules
+
+1. Open another Git Bash terminal in your IDE.
+2. Run the following command to install the required modules:
+
+   ```bash
+   python -m pip install -r requirements.txt
+   ```
 
 ## Running the Tests
 
