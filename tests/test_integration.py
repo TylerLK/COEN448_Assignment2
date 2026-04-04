@@ -546,7 +546,7 @@ def test_tc03_user_update_propagation(api_base_url, mongo_client, schemas, kong_
     assert isinstance(response_body, list), EXPECTED_TWO_OBJECTS_RESPONSE_MSG
     assert len(response_body) == 2
 
-    # Determine theexpected values of the updated user's email.delivery address.
+    # Determine the expected values of the updated user's emails and delivery address.
     updated_user = response_body[1]
     expected_emails = payload.get("emails", updated_user["emails"])
     expected_delivery = payload.get("deliveryAddress", updated_user["deliveryAddress"])
