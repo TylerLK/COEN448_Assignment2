@@ -1,5 +1,0 @@
-emails,street,city,state,postalCode,country,firstName
-,,,,,,
-not-an-email,,,,,,
-,Missing required fields,,,,,
-,,,,,,Not allowed in PUT
