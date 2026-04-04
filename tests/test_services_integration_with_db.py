@@ -214,7 +214,7 @@ def test_tc01_user_integration(api_base_url, mongo_client, user_data):
     db_user = users_collection.find_one({"userId": user_id})
     assert db_user is not None, f"User with ID {user_id} not found in MongoDB after creation"
 
-    # 5. Asset State Integrity
+    # 5. Assert State Integrity
     assert db_user['emails'] == emails
     assert db_user['deliveryAddress']['street'] == user_data['street']
     assert db_user['deliveryAddress']['city'] == user_data['city']
