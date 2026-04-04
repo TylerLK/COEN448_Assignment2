@@ -42,6 +42,22 @@ def wait_for_service(url, timeout=200):
             time.sleep(1)
     raise TimeoutError(f"Service at {url} not ready")
 
+
+def restart_kong_with_weight(weight):
+    env = os.environ.copy()
+    env["P_VALUE"] = str(weight)
+
+    subprocess.run(
+        [
+            "docker", "compose", "-f", "docker-compose.test.yml",
+            "up", "-d", "--force-recreate", "kong"
+        ],
+        check=True,
+        env=env
+    )
+
+    wait_for_service("http://localhost:8001/")
+
 # Fixture for API base URL
 @pytest.fixture(scope="module")
 def api_base_url():
@@ -176,8 +192,18 @@ def load_csv_data():
     return datasets
 
 # TC_01
+@pytest.mark.parametrize(
+    "route_weight,expected_version",
+    [
+        (100, "v1"),
+        (0, "v2"),
+    ],
+)
 @pytest.mark.parametrize("user_data", load_csv_data())
-def test_tc01_user_integration(api_base_url, mongo_client, user_data):
+def test_tc01_user_integration(api_base_url, mongo_client, user_data, route_weight,
+                               expected_version):
+    restart_kong_with_weight(route_weight)
+
     # 1. Prepare JSON payload
     emails = [e.strip() for e in user_data['emails'].split(';') if e.strip()]
     
@@ -224,4 +250,20 @@ def test_tc01_user_integration(api_base_url, mongo_client, user_data):
     if user_data.get('phoneNumber'):
         assert db_user['phoneNumber'] == user_data['phoneNumber']
 
-    print(f"Successfully verified user creation for {emails} with userId: {user_id}")
+    if expected_version == "v1":
+        assert created_user.get("createdAt") is None, "v1 should not automatically set createdAt"
+        assert created_user.get("updatedAt") is None, "v1 should not automatically set updatedAt"
+        assert db_user.get("createdAt") is None, "v1 persisted unexpected createdAt"
+        assert db_user.get("updatedAt") is None, "v1 persisted unexpected updatedAt"
+    else:
+        assert created_user.get("createdAt") is not None, "v2 should automatically set createdAt"
+        assert created_user.get("updatedAt") is not None, "v2 should automatically set updatedAt"
+        assert db_user.get("createdAt") is not None, "v2 did not persist createdAt"
+        assert db_user.get("updatedAt") is not None, "v2 did not persist updatedAt"
+
+    users_collection.delete_one({"userId": user_id})
+
+    print(
+        f"Successfully verified user creation for {emails} with userId: {user_id} "
+        f"through {expected_version}"
+    )
