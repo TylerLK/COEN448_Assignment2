@@ -306,15 +306,19 @@ def build_tc01_payload(user_data):
 # TC_01 - Validate User Creation & Retrieval
 @pytest.mark.parametrize("user_data", load_tc01_csv_data())
 def test_tc01_user_integration(api_base_url, mongo_client, schemas, kong_weight_session, user_data):
+    # Create the payload for a new user.
     payload = build_tc01_payload(user_data)
 
+    # Send the POST request to create the user.
     response = requests.post(f"{api_base_url}/users/", json=payload, timeout=10)
     assert response.status_code == 201, f"Failed to create user: {response.text}"
 
+    # Validate the creation of the user.
     created_user = response.json()
     user_id = created_user.get("userId")
     assert user_id is not None, "userId was not returned in the response"
 
+    # Validate that the user is found in the "users" collection in MongoDB with the correct data.
     users_collection = get_users_collection(mongo_client)
     db_user = users_collection.find_one({"userId": user_id})
     assert db_user is not None, f"User with ID {user_id} not found in MongoDB after creation"
@@ -343,12 +347,15 @@ def test_tc01_user_integration(api_base_url, mongo_client, schemas, kong_weight_
 # TC_02 - Validate Order Creation with Existing User
 @pytest.mark.parametrize("order_row", load_tc02_csv_data())
 def test_tc02_order_integration(api_base_url, mongo_client, schemas, kong_weight_session, order_row):
+    # Retrieve the "users" and "orders" collections from MongoDB.
     users_collection = get_users_collection(mongo_client)
     orders_collection = get_orders_collection(mongo_client)
 
+    # Choose an existing user from the "users" collection.
     existing_user = users_collection.find_one({})
     assert existing_user is not None, "No existing user available for order test"
 
+    # Create the payload for an order.
     payload = {
         "userId": existing_user["userId"],
         "items": [
@@ -363,13 +370,16 @@ def test_tc02_order_integration(api_base_url, mongo_client, schemas, kong_weight
         "deliveryAddress": existing_user["deliveryAddress"],
     }
 
+    # Send the POST request to create the order.
     post_response = requests.post(f"{api_base_url}/orders/", json=payload, timeout=10)
     assert post_response.status_code == 201, f"Failed to create order: {post_response.text}"
 
+    # Validate the creation of the order.
     created_order = post_response.json()
     order_id = created_order.get("orderId")
     assert order_id is not None, "orderId was not returned in the response"
 
+    # Send the GET request to retrieve the order.
     get_response = requests.get(
         f"{api_base_url}/orders/",
         params={"status": order_row["orderStatus"]},
@@ -377,6 +387,7 @@ def test_tc02_order_integration(api_base_url, mongo_client, schemas, kong_weight
     )
     assert get_response.status_code == 200, f"Failed to retrieve orders: {get_response.text}"
 
+    # Validate that the created order has been retrieved.
     retrieved_order = next(
         (order for order in get_response.json() if order.get("orderId") == order_id),
         None,
@@ -385,6 +396,7 @@ def test_tc02_order_integration(api_base_url, mongo_client, schemas, kong_weight
         f"Order {order_id} was not found in GET /orders/?status={order_row['orderStatus']}"
     )
 
+    # Validate that the retrieved order has the correct data.
     assert_order_fields(
         retrieved_order,
         order_id,
@@ -394,6 +406,7 @@ def test_tc02_order_integration(api_base_url, mongo_client, schemas, kong_weight
         existing_user["deliveryAddress"],
     )
 
+    # Validate that the order is found in the "orders" collection in MongoDB.
     db_order = orders_collection.find_one({"orderId": order_id})
     assert db_order is not None, f"Order with ID {order_id} not found in MongoDB"
     assert_order_fields(
@@ -405,16 +418,20 @@ def test_tc02_order_integration(api_base_url, mongo_client, schemas, kong_weight
         existing_user["deliveryAddress"],
     )
 
+    # Validate the JSON schema for the created order.
     assert_valid_schema(created_order, schemas["order"])
     assert_valid_schema(db_order, schemas["order"])
 
 def test_tc02_order_status_put_and_get(api_base_url, mongo_client, schemas, kong_weight_session):
+    # Retrieve the "users" and "orders" collections from MongoDB.
     users_collection = get_users_collection(mongo_client)
     orders_collection = get_orders_collection(mongo_client)
 
+    # Choose an existing user from the "users" collection.
     existing_user = users_collection.find_one({})
     assert existing_user is not None, "No user found for order status PUT test"
 
+    # Create an order for the existing user to update.
     order_payload = {
         "userId": existing_user["userId"],
         "items": [{"itemId": "status-item", "quantity": 1, "price": 1.5}],
@@ -423,10 +440,12 @@ def test_tc02_order_status_put_and_get(api_base_url, mongo_client, schemas, kong
         "deliveryAddress": existing_user["deliveryAddress"],
     }
 
+    # Send POST request to create the order.
     create_resp = requests.post(f"{api_base_url}/orders/", json=order_payload, timeout=10)
     assert create_resp.status_code == 201, create_resp.text
     order_id = create_resp.json()["orderId"]
 
+    # Send PUT request to update the order status.
     put_resp = requests.put(
         f"{api_base_url}/orders/{order_id}/status",
         json={"orderStatus": "shipping"},
@@ -443,10 +462,12 @@ def test_tc02_order_status_put_and_get(api_base_url, mongo_client, schemas, kong
     assert len(put_body) == 2
     assert put_body[1]["orderStatus"] == "shipping"
 
+    # Send the GET request to retrieve the order.
     get_resp = requests.get(f"{api_base_url}/orders/", params={"status": "shipping"}, timeout=10)
     assert get_resp.status_code == 200
     assert any(order.get("orderId") == order_id for order in get_resp.json())
 
+    # Validate that the order status update is reflected in MongoDB.
     db_order = orders_collection.find_one({"orderId": order_id})
     assert db_order is not None
     assert db_order["orderStatus"] == "shipping"
@@ -480,12 +501,15 @@ def test_tc02_order_status_put_and_get(api_base_url, mongo_client, schemas, kong
     ),
 ])
 def test_tc03_user_update_propagation(api_base_url, mongo_client, schemas, kong_weight_session, new_emails, new_address):
+    # Retrieve the "users" and "orders" collections from MongoDB.
     users_collection = get_users_collection(mongo_client)
     orders_collection = get_orders_collection(mongo_client)
 
+    # Choose an existing user from the "users" collection to update.
     existing_user = users_collection.find_one({})
     assert existing_user is not None, "No user found for event-driven propagation test"
 
+    # If no orders exist for the user, create a new one.
     if orders_collection.count_documents({"userId": existing_user["userId"]}) == 0:
         seed_order_payload = {
             "userId": existing_user["userId"],
@@ -497,12 +521,14 @@ def test_tc03_user_update_propagation(api_base_url, mongo_client, schemas, kong_
         seed_response = requests.post(f"{api_base_url}/orders/", json=seed_order_payload, timeout=10)
         assert seed_response.status_code == 201, seed_response.text
 
+    # Contruct a payload for thh PUT request.
     payload = {}
     if new_emails is not None:
         payload["emails"] = new_emails
     if new_address is not None:
         payload["deliveryAddress"] = new_address
 
+    # Send the PUT request to update the user.
     put_response = requests.put(
         f"{api_base_url}/users/{existing_user['userId']}",
         json=payload,
@@ -515,14 +541,17 @@ def test_tc03_user_update_propagation(api_base_url, mongo_client, schemas, kong_
         )
     assert put_response.status_code == 200, f"PUT failed: {put_response.text}"
 
+    # Validate the response contains both original and updated user data.
     response_body = put_response.json()
     assert isinstance(response_body, list), EXPECTED_TWO_OBJECTS_RESPONSE_MSG
     assert len(response_body) == 2
 
+    # Determine theexpected values of the updated user's email.delivery address.
     updated_user = response_body[1]
     expected_emails = payload.get("emails", updated_user["emails"])
     expected_delivery = payload.get("deliveryAddress", updated_user["deliveryAddress"])
 
+    # Validate that the PUT update has propagated to all related Order documents in MongoDB.
     ensure_user_put_propagated(
         orders_collection,
         existing_user["userId"],
@@ -530,7 +559,7 @@ def test_tc03_user_update_propagation(api_base_url, mongo_client, schemas, kong_
         expected_delivery,
     )
 
-    # Use GET /orders/?status to verify updated order details.
+    # Send the GET request to retrieve orders for the user and validate the updated fields are reflected.
     statuses = ["under process", "shipping", "delivered"]
     for status in statuses:
         status_resp = requests.get(f"{api_base_url}/orders/", params={"status": status}, timeout=10)
@@ -542,6 +571,7 @@ def test_tc03_user_update_propagation(api_base_url, mongo_client, schemas, kong_
             assert order["userEmails"] == expected_emails
             assert order["deliveryAddress"] == expected_delivery
 
+    # Validate that the updated user document in MongoDB has the correct data.
     updated_db_user = users_collection.find_one({"userId": existing_user["userId"]})
     assert updated_db_user is not None
     assert updated_db_user["emails"] == expected_emails
@@ -555,12 +585,16 @@ def test_tc03_user_update_propagation(api_base_url, mongo_client, schemas, kong_
     {"firstName": "Not allowed in PUT"},
 ])
 def test_tc03_user_update_invalid_payload(api_base_url, mongo_client, kong_weight_session, invalid_payload):
+    # Retrieve the "users" and "orders" collections from MongoDB.
     users_collection = get_users_collection(mongo_client)
-    user_before = users_collection.find_one({})
-    assert user_before is not None, "User missing before invalid PUT test"
 
+    # Choose an existing user from the "users" collection to attempt to update with invalid payloads.
+    existing_user = users_collection.find_one({})
+    assert existing_user is not None, "User missing before invalid PUT test"
+
+    # Send the PUT request with invalid payload.
     put_response = requests.put(
-        f"{api_base_url}/users/{user_before['userId']}",
+        f"{api_base_url}/users/{existing_user['userId']}",
         json=invalid_payload,
         timeout=10,
     )
@@ -570,24 +604,33 @@ def test_tc03_user_update_invalid_payload(api_base_url, mongo_client, kong_weigh
             "parameter, causing 500 responses when routed to v2."
         )
 
+    # Validate that the response status code is 400 for invalid payloads.
     assert put_response.status_code == 400, (
         f"Expected 400 for invalid payload {invalid_payload}, got "
         f"{put_response.status_code}: {put_response.text}"
     )
 
-    user_after = users_collection.find_one({"userId": user_before["userId"]})
-    assert user_after is not None
-    assert user_after["emails"] == user_before["emails"]
-    assert user_after["deliveryAddress"] == user_before["deliveryAddress"]
+    # Validate that the user document in MongoDB has not been modified.
+    updated_user = users_collection.find_one({"userId": existing_user["userId"]})
+    assert updated_user is not None
+    assert updated_user["emails"] == existing_user["emails"]
+    assert updated_user["deliveryAddress"] == existing_user["deliveryAddress"]
 
 # TC_04 - Validate API Gateway Routing
 def test_tc04_gateway_routing_behavior(api_base_url, mongo_client, kong_weight_session):
+    # Retrieve the "users" collection from MongoDB.
     users_collection = get_users_collection(mongo_client)
 
+    # Create empty lists to track any created users and which User microservice version created them.
     observed_versions = []
     created_user_ids = []
 
+    # Create a given number of users based on the API gateway routing weight.
+    # For P = 0, 100, less iterations will yield adequate results.
+    # For P = 50, more iterations are needed to ensure that the routing is distributed equally.
     iterations = 20 if kong_weight_session == 50 else 8
+
+    # For each iteration, a unique user should be created.
     for _ in range(iterations):
         unique = uuid.uuid4().hex[:10]
         payload = {
@@ -611,6 +654,8 @@ def test_tc04_gateway_routing_behavior(api_base_url, mongo_client, kong_weight_s
         assert db_user is not None
         observed_versions.append(classify_user_version(db_user))
 
+    # Determine the version of the User microservice that was used to create the user.
+    # If P = 50, validate that each User microservice version was used at least once.
     if kong_weight_session == 0:
         assert all(version == "v2" for version in observed_versions), observed_versions
     elif kong_weight_session == 100:
@@ -619,4 +664,5 @@ def test_tc04_gateway_routing_behavior(api_base_url, mongo_client, kong_weight_s
         assert "v1" in observed_versions, f"Expected at least one v1 route at P=50: {observed_versions}"
         assert "v2" in observed_versions, f"Expected at least one v2 route at P=50: {observed_versions}"
 
+    # Clean the database of all the temporary users created during this test.
     users_collection.delete_many({"userId": {"$in": created_user_ids}})

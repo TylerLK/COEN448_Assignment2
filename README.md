@@ -156,7 +156,7 @@ To run the tests for the Aware-Microservices project, follow these steps:
 2. Execute the following command to run the tests:
 
     ```bash
-    python -m pytest tests/
+    python -m pytest tests/test_integration.py
     ```
 
 This command will run the specified test suite using `pytest`.
