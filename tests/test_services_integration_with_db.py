@@ -42,6 +42,22 @@ def wait_for_service(url, timeout=200):
             time.sleep(1)
     raise TimeoutError(f"Service at {url} not ready")
 
+
+def restart_kong_with_weight(weight):
+    env = os.environ.copy()
+    env["P_VALUE"] = str(weight)
+
+    subprocess.run(
+        [
+            "docker", "compose", "-f", "docker-compose.test.yml",
+            "up", "-d", "--force-recreate", "kong"
+        ],
+        check=True,
+        env=env
+    )
+
+    wait_for_service("http://localhost:8001/")
+
 # Fixture for API base URL
 @pytest.fixture(scope="module")
 def api_base_url():
@@ -175,12 +191,36 @@ def load_csv_data():
             datasets.append(row)
     return datasets
 
-# TC_01
-@pytest.mark.parametrize("user_data", load_csv_data())
-def test_tc01_user_integration(api_base_url, mongo_client, user_data):
+
+def build_tc01_cases():
+    cases = []
+    for expected_version, route_weight in [("v1", 100), ("v2", 0)]:
+        for index, user_data in enumerate(load_csv_data(), start=1):
+            email_label = user_data["emails"].split(";")[0].strip()
+            case_id = f"{expected_version}-row{index}-{email_label}"
+            cases.append(
+                pytest.param(route_weight, expected_version, user_data, id=case_id)
+            )
+    return cases
+
+
+@pytest.fixture(scope="module")
+def kong_route_manager():
+    last_weight = {"value": None}
+
+    def ensure_weight(weight):
+        if last_weight["value"] != weight:
+            restart_kong_with_weight(weight)
+            last_weight["value"] = weight
+
+    return ensure_weight
+
+
+# Helper Function to run TC01 for a specific version
+def run_tc01_for_version(api_base_url, mongo_client, user_data, expected_version):
     # 1. Prepare JSON payload
     emails = [e.strip() for e in user_data['emails'].split(';') if e.strip()]
-    
+
     payload = {
         "emails": emails,
         "deliveryAddress": {
@@ -224,4 +264,35 @@ def test_tc01_user_integration(api_base_url, mongo_client, user_data):
     if user_data.get('phoneNumber'):
         assert db_user['phoneNumber'] == user_data['phoneNumber']
 
-    print(f"Successfully verified user creation for {emails} with userId: {user_id}")
+    if expected_version == "v1":
+        assert created_user.get("createdAt") is None, "v1 should not automatically set createdAt"
+        assert created_user.get("updatedAt") is None, "v1 should not automatically set updatedAt"
+        assert db_user.get("createdAt") is None, "v1 persisted unexpected createdAt"
+        assert db_user.get("updatedAt") is None, "v1 persisted unexpected updatedAt"
+    else:
+        assert created_user.get("createdAt") is not None, "v2 should automatically set createdAt"
+        assert created_user.get("updatedAt") is not None, "v2 should automatically set updatedAt"
+        assert db_user.get("createdAt") is not None, "v2 did not persist createdAt"
+        assert db_user.get("updatedAt") is not None, "v2 did not persist updatedAt"
+
+    users_collection.delete_one({"userId": user_id})
+
+    print(
+        f"Successfully verified user creation for {emails} with userId: {user_id} "
+        f"through {expected_version}"
+    )
+
+
+# TC_01
+@pytest.mark.parametrize(
+    "route_weight,expected_version,user_data",
+    build_tc01_cases(),
+)
+def test_tc01_user_integration(api_base_url, mongo_client, kong_route_manager,
+                               route_weight, expected_version, user_data):
+    """
+    This function tests each tc01.csv row as an explicit pytest case.
+    The full v1 block runs first, Kong restarts once, then the full v2 block runs.
+    """
+    kong_route_manager(route_weight)
+    run_tc01_for_version(api_base_url, mongo_client, user_data, expected_version)
