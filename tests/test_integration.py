@@ -228,7 +228,7 @@ def normalize_for_schema(value):
         return value.isoformat()
     return value
 
-# Validates tat a given object matches the expected JSON schema format.
+# Validates that a given object matches the expected JSON schema format.
 def assert_valid_schema(document, schema):
     jsonschema = __import__("jsonschema")
     jsonschema.validate(
