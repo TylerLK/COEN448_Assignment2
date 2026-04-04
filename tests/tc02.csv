@@ -1,0 +1,4 @@
+itemId,quantity,price,userEmails,orderStatus,street,city,state,postalCode,country
+item-001,2,29.99,john.doe@example.com,under process,100 University Street,Montreal,QC,H3G 1M8,Canada
+item-999,1,450.00,minimal.user@test.org,shipping,1 Main St,TestCity,TS,00000,TestCountry
+item-ABC,10,5.50,"primary@work.com;secondary@personal.net",delivered,500 Innovation Blvd,Tech Valley,CA,90210,USA
