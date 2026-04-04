@@ -1,4 +1,5 @@
 import os
+import csv
 import pytest
 import requests
 import pymongo
@@ -163,3 +164,64 @@ def test_user_update(api_base_url, mongo_client):
     assert updated_user["emails"] == ["updated.email@example.com"]
     assert updated_user["deliveryAddress"]["street"] == "456 Update Street"
 
+# Additional Integration Testing Code
+# Helper function to read tc01.csv
+def load_csv_data():
+    csv_file = os.path.join(os.path.dirname(__file__), "tc01.csv")
+    datasets = []
+    with open(csv_file, mode='r', encoding='utf-8', newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            datasets.append(row)
+    return datasets
+
+# TC_01
+@pytest.mark.parametrize("user_data", load_csv_data())
+def test_tc01_user_integration(api_base_url, mongo_client, user_data):
+    # 1. Prepare JSON payload
+    emails = [e.strip() for e in user_data['emails'].split(';') if e.strip()]
+    
+    payload = {
+        "emails": emails,
+        "deliveryAddress": {
+            "street": user_data['street'],
+            "city": user_data['city'],
+            "state": user_data['state'],
+            "postalCode": user_data['postalCode'],
+            "country": user_data['country']
+        }
+    }
+    
+    if user_data.get('firstName'): payload['firstName'] = user_data['firstName']
+    if user_data.get('lastName'): payload['lastName'] = user_data['lastName']
+    if user_data.get('phoneNumber'): payload['phoneNumber'] = user_data['phoneNumber']
+
+    # 2. POST request to API Gateway
+    print(f"\nSending POST to /users/ with emails: {emails}")
+    response = requests.post(f"{api_base_url}/users/", json=payload)
+    
+    # 3. Verify Response status
+    assert response.status_code == 201, f"Failed to create user: {response.text}"
+    created_user = response.json()
+    user_id = created_user.get('userId')
+    assert user_id is not None, "userId was not returned in the response"
+
+    # 4. Verify in MongoDB (Simulation of Retrieval)
+    users_db = mongo_client[os.getenv("DATABASE_NAME")]
+    users_collection = users_db["users"]
+    
+    # Search for the user in the database through mongo client
+    db_user = users_collection.find_one({"userId": user_id})
+    assert db_user is not None, f"User with ID {user_id} not found in MongoDB after creation"
+
+    # 5. Assert State Integrity
+    assert db_user['emails'] == emails
+    assert db_user['deliveryAddress']['street'] == user_data['street']
+    assert db_user['deliveryAddress']['city'] == user_data['city']
+    
+    if user_data.get('firstName'):
+        assert db_user['firstName'] == user_data['firstName']
+    if user_data.get('phoneNumber'):
+        assert db_user['phoneNumber'] == user_data['phoneNumber']
+
+    print(f"Successfully verified user creation for {emails} with userId: {user_id}")
