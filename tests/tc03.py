@@ -25,14 +25,14 @@ def _get_existing_user_and_order(mongo_client):
 
 # TC_03
 def test_tc03_user_integration(api_base_url, mongo_client):
-    # Load the databse, as well as the users and orders collections.
+    # Load the database, as well as the users and orders collections.
     users_collection, orders_collection, db_user, db_user_id = _get_existing_user_and_order(mongo_client)
 
     # Store the original state of the user's email/delivery address.
     original_email_addresses = db_user['emails']
     original_delivery_address = db_user['deliveryAddress']
 
-    # Create the new values for email/delivey address.
+    # Create the new values for email/delivery address.
     updated_email_address = ["updated@example.com"]
     updated_delivery_address = {
         "street": "123 Updated Street",
