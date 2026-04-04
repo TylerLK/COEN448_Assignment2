@@ -126,7 +126,7 @@
   - `kong_weight_session` now ensures base services are up before Kong weight rotation.
   - Added Mongo readiness helper (`wait_for_mongo`) to prevent transient connection errors.
   - Reduced teardown aggressiveness (`docker compose down --remove-orphans`) to avoid unnecessary volume churn.
-- Addressed cross-weight email collisions in TC_01 by generating unique emails per test invocation (plus-address suffix), preventing duplicate-email failures when running `P=0,50,100` in one session.
+- TC_01 currently submits the raw emails from `tc01.csv`; no per-invocation plus-address uniquifying is applied, so duplicate-email collisions may still occur when running `P=0,50,100` in one session or across repeated runs.
 - Tightened schema normalization for test validation:
   - Excludes `createdAt`/`updatedAt` from strict schema checks.
   - Excludes `None` optional fields to avoid false negatives unrelated to core integrity assertions.
