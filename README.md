@@ -130,7 +130,7 @@ To run the Aware-Microservices project using Docker, follow these steps:
 
 1. Ensure you have Docker installed on your Linux system.
 2. Set the environment variables using the `.env.example` file as a template.
-3. Open a Git Bash terminal is your IDE.
+3. Open a Git Bash terminal in your IDE.
 4. Execute the following command to build and run the Docker containers:
 
     ```bash
@@ -141,7 +141,7 @@ This command will stop any running containers, build the images, and start the c
 
 ## Installing all Required Modules
 
-1. Open another Git Bah terminal in your IDE.
+1. Open another Git Bash terminal in your IDE.
 2. Run the following command to install the required modules:
 
    ```bash
