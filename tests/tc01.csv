@@ -1,0 +1,5 @@
+firstName,lastName,emails,phoneNumber,street,city,state,postalCode,country
+John,Doe,john.doe@example.com,1234567890,100 University Street,Montreal,QC,H3G 1M8,Canada
+Minimal User,,minimal.user@test.org,,1 Main St,TestCity,TS,00000,TestCountry
+Multi,Email,"primary@work.com;secondary@personal.net",,500 Innovation Blvd,Tech Valley,CA,90210,USA
+François,Müller,francois.m@europa.eu,,Rue de l'Église 42,Paris,Île-de-France,75001,France
