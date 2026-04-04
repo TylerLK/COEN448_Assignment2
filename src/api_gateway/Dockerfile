@@ -19,7 +19,8 @@ ENV P_VALUE=${P_VAL}
 # Expose necessary ports
 EXPOSE 8000 8443 8001 8444
 
-RUN chmod +x /docker-entrypoint.sh && \
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && \
+    chmod +x /docker-entrypoint.sh && \
     chown -R kong:kong /etc/kong
 
 USER kong
