@@ -521,7 +521,7 @@ def test_tc03_user_update_propagation(api_base_url, mongo_client, schemas, kong_
         seed_response = requests.post(f"{api_base_url}/orders/", json=seed_order_payload, timeout=10)
         assert seed_response.status_code == 201, seed_response.text
 
-    # Contruct a payload for thh PUT request.
+    # Construct a payload for the PUT request.
     payload = {}
     if new_emails is not None:
         payload["emails"] = new_emails
