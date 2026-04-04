@@ -220,7 +220,7 @@ def normalize_for_schema(value):
         return {
             k: normalize_for_schema(v)
             for k, v in value.items()
-            if k not in {"createdAt", "updatedAt"} and v is not None
+            if v is not None
         }
     if isinstance(value, list):
         return [normalize_for_schema(v) for v in value]
