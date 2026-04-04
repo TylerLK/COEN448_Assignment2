@@ -61,27 +61,17 @@ def mongo_client():
     yield client
     client.close()
 
-# Fixture to create a temporary user for order tests
+# Fixture to use an existing seeded user for order tests
 @pytest.fixture(scope="module")
-def test_user_id(api_base_url):
-    user_payload = {
-        "firstName": "TC02",
-        "lastName": "User",
-        "emails": ["tc02.user@example.com"],
-        "deliveryAddress": {
-            "street": "Order Street",
-            "city": "Order City",
-            "state": "OS",
-            "postalCode": "12345",
-            "country": "Order Country"
-        }
-    }
-    print(f"\nCreating test user for TC_02...")
-    response = requests.post(f"{api_base_url}/users/", json=user_payload)
-    assert response.status_code == 201
-    user_id = response.json()['userId']
-    print(f"Test user created with ID: {user_id}")
-    return user_id
+def test_user(mongo_client):
+    users_db = mongo_client[os.getenv("DATABASE_NAME")]
+    users_collection = users_db["users"]
+
+    existing_user = users_collection.find_one({"userId": "u1"})
+    assert existing_user is not None, "Expected existing seeded user u1 was not found"
+
+    print("\nUsing existing seeded user for TC_02: u1")
+    return existing_user
 
 # Helper function to read tc02.csv
 def load_csv_data():
@@ -95,12 +85,12 @@ def load_csv_data():
 
 # TC_02: Order Creation and User Reference
 @pytest.mark.parametrize("order_row", load_csv_data())
-def test_tc02_order_integration(api_base_url, mongo_client, test_user_id, order_row):
+def test_tc02_order_integration(api_base_url, mongo_client, test_user, order_row):
     # 1. Prepare JSON payload
-    user_emails = [e.strip() for e in order_row['userEmails'].split(';') if e.strip()]
+    user_emails = test_user['emails']
     
     payload = {
-        "userId": test_user_id,
+        "userId": test_user['userId'],
         "items": [
             {
                 "itemId": order_row['itemId'],
@@ -110,36 +100,62 @@ def test_tc02_order_integration(api_base_url, mongo_client, test_user_id, order_
         ],
         "userEmails": user_emails,
         "orderStatus": order_row['orderStatus'],
-        "deliveryAddress": {
-            "street": order_row['street'],
-            "city": order_row['city'],
-            "state": order_row['state'],
-            "postalCode": order_row['postalCode'],
-            "country": order_row['country']
-        }
+        "deliveryAddress": test_user['deliveryAddress']
     }
 
     # 2. POST request to Order Service via API Gateway
-    print(f"\nSending POST to /orders/ for user: {test_user_id} (Scenario: {order_row['itemId']})")
+    print(f"\nSending POST to /orders/ for user: {test_user['userId']} (Scenario: {order_row['itemId']})")
     response = requests.post(f"{api_base_url}/orders/", json=payload)
     
     # 3. Verify Response status
     assert response.status_code == 201, f"Failed to create order: {response.text}"
     created_order = response.json()
-    order_id = created_order.get('orderId')
+    order_id = created_order.get('orderId') # use orderid to validate the creation in the next steps
     assert order_id is not None, "orderId was not returned in the response"
 
-    # 4. Verify in MongoDB (Retrieval Simulation)
+    # 4. Retrieve matching orders through the API Gateway using the existing GET endpoint (trying to filter a bit using the orderstatus)
+    print(f"Retrieving orders with GET /orders?status={order_row['orderStatus']}")
+    get_response = requests.get(
+        f"{api_base_url}/orders/",
+        params={"status": order_row['orderStatus']}
+    )
+
+    # Once we get the response, we iterate through the list of orders and find the one with the matching orderId
+    assert get_response.status_code == 200, f"Failed to retrieve orders: {get_response.text}"
+    retrieved_orders = get_response.json()
+    retrieved_order = next(
+        (order for order in retrieved_orders if order.get('orderId') == order_id),
+        None
+    )
+
+    # 5. Validate the retrieved order details
+    # if there is none found that match the orderId, we fail the test
+    assert retrieved_order is not None, \
+        f"Order {order_id} was not found in GET /orders?status={order_row['orderStatus']}"
+    assert retrieved_order['orderId'] == order_id
+    assert retrieved_order['userId'] == test_user['userId'], \
+        "Retrieved order does not reference the correct userId"
+    assert retrieved_order['items'][0]['itemId'] == order_row['itemId']
+    assert retrieved_order['items'][0]['quantity'] == int(order_row['quantity'])
+    assert retrieved_order['items'][0]['price'] == float(order_row['price'])
+    assert retrieved_order['orderStatus'] == order_row['orderStatus']
+    assert retrieved_order['userEmails'] == user_emails
+    assert retrieved_order['deliveryAddress'] == payload['deliveryAddress']
+
+    # 6. Verify persisted state in MongoDB
     users_db = mongo_client[os.getenv("DATABASE_NAME")]
     orders_collection = users_db["orders"]
     
     db_order = orders_collection.find_one({"orderId": order_id})
     assert db_order is not None, f"Order with ID {order_id} not found in MongoDB"
 
-    # 5. Asset State Integrity and User Reference
-    assert db_order['userId'] == test_user_id, "Order does not reference the correct userId"
+    # 7. Assert persisted state integrity and user reference
+    assert db_order['userId'] == test_user['userId'], "Order does not reference the correct userId"
     assert db_order['items'][0]['itemId'] == order_row['itemId']
+    assert db_order['items'][0]['quantity'] == int(order_row['quantity'])
+    assert db_order['items'][0]['price'] == float(order_row['price'])
     assert db_order['orderStatus'] == order_row['orderStatus']
     assert db_order['userEmails'] == user_emails
+    assert db_order['deliveryAddress'] == payload['deliveryAddress']
 
-    print(f"Successfully verified order {order_id} references user {test_user_id}")
+    print(f"Successfully verified order {order_id} references user {test_user['userId']}")
