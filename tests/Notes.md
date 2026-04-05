@@ -128,7 +128,7 @@
   - Reduced teardown aggressiveness (`docker compose down --remove-orphans`) to avoid unnecessary volume churn.
 - TC_01 currently submits the raw emails from `tc01.csv`; no per-invocation plus-address uniquifying is applied, so duplicate-email collisions may still occur when running `P=0,50,100` in one session or across repeated runs.
 - Tightened schema normalization for test validation:
-  - Excludes `createdAt`/`updatedAt` from strict schema checks.
+  - Continues validating `createdAt`/`updatedAt` against the schema when those fields are present.
   - Excludes `None` optional fields to avoid false negatives unrelated to core integrity assertions.
 - Added explicit `xfail` handling for known upstream service bugs that return HTTP 500:
   - `order-service` PUT route handlers defined without route `id` parameter.
